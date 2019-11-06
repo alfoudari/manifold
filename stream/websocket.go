@@ -10,6 +10,7 @@ import (
 type WebSocket struct {
 	URL    string
 	Header http.Header
+	Args   map[string]string
 	conn   *websocket.Conn
 }
 
@@ -36,13 +37,17 @@ func (w *WebSocket) Disconnect() (err error) {
 	return
 }
 
-func (w *WebSocket) Read() (message string, err error) {
-	// loop over the websocket connection trying to read incoming messages
-	_, messageBytes, err := w.conn.ReadMessage()
-	if err != nil {
-		log.Error("ReadMessage() error: ", err)
-		return
-	}
-	message = string(messageBytes)
+func (w *WebSocket) Read() (channel chan string, err error) {
+	channel = make(chan string)
+	go func() {
+		for {
+			_, messageBytes, err := w.conn.ReadMessage()
+			if err != nil {
+				log.Error("ReadMessage() error: ", err)
+				return
+			}
+			channel <- string(messageBytes)
+		}
+	}()
 	return
 }
