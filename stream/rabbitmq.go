@@ -10,6 +10,7 @@ import (
 type RabbitMQ struct {
 	URL     string
 	Header  http.Header
+	Args    map[string]string
 	conn    *amqp.Connection
 	channel *amqp.Channel
 }
@@ -50,15 +51,15 @@ func (r *RabbitMQ) Disconnect() (err error) {
 //  exchange - exchange to publish to
 //  key - routing key
 //  message - message to publish
-func (r *RabbitMQ) Write(kv map[string]string) (err error) {
+func (r *RabbitMQ) Write(message string) (err error) {
 	err = r.channel.Publish(
-		kv["exchange"], // exchange
-		kv["key"],      // routing key
-		false,          // mandatory
-		false,          // immediate
+		r.Args["exchange"], // exchange
+		r.Args["key"],      // routing key
+		false,              // mandatory
+		false,              // immediate
 		amqp.Publishing{
 			ContentType: "text/plain",
-			Body:        []byte(kv["message"]),
+			Body:        []byte(message),
 		})
 
 	if err != nil {
@@ -66,7 +67,31 @@ func (r *RabbitMQ) Write(kv map[string]string) (err error) {
 		return
 	}
 
-	log.Info(kv["message"])
+	return
+}
+
+func (r *RabbitMQ) Read() (channel chan string, err error) {
+	channel = make(chan string)
+
+	deliveryChannel, err := r.channel.Consume(
+		r.Args["queue"],
+		r.Args["consumer"],
+		true,
+		false,
+		false,
+		false,
+		nil,
+	)
+	if err != nil {
+		log.Error("RabbitMQ: Failed to read from channel: ", err)
+		return
+	}
+
+	go func() {
+		for m := range deliveryChannel {
+			channel <- string(m.Body)
+		}
+	}()
 
 	return
 }
