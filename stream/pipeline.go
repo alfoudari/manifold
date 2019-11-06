@@ -3,20 +3,27 @@ package stream
 import (
 	"os"
 	"os/signal"
+	"reflect"
 
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/text/language"
+	textMessage "golang.org/x/text/message"
 )
 
 type Source interface {
 	Connect() error
 	Disconnect() error
-	Read() (string, error)
+	Read() (chan string, error)
 }
 
 type Destination interface {
 	Connect() error
 	Disconnect() error
-	Write(map[string]string) error
+	Write(message string) error
+}
+
+type stat struct {
+	count uint64
 }
 
 func Flow(src Source, dest Destination) {
@@ -29,15 +36,21 @@ func Flow(src Source, dest Destination) {
 	src.Connect()
 	dest.Connect()
 
+	log.Info("Source is: ", reflect.TypeOf(src))
+	log.Info("Destination is: ", reflect.TypeOf(dest))
+
 	// do something!
 	go func() {
-		for {
-			message, _ := src.Read()
-			dest.Write(map[string]string{
-				"exchange": "btcbnb",
-				"key":      "trades",
-				"message":  message,
-			})
+		var stat stat
+
+		channel, _ := src.Read()
+
+		for message := range channel {
+			dest.Write(message)
+
+			stat.count++
+			p := textMessage.NewPrinter(language.English)
+			p.Printf("\rSent messages: %d", stat.count)
 		}
 	}()
 
