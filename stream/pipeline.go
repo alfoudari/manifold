@@ -13,12 +13,14 @@ import (
 type Source interface {
 	Connect() error
 	Disconnect() error
+	Info()
 	Read() (chan string, error)
 }
 
 type Destination interface {
 	Connect() error
 	Disconnect() error
+	Info()
 	Write(message string) error
 }
 
@@ -37,7 +39,9 @@ func Flow(src Source, dest Destination) {
 	dest.Connect()
 
 	log.Info("Source is: ", reflect.TypeOf(src))
+	src.Info()
 	log.Info("Destination is: ", reflect.TypeOf(dest))
+	dest.Info()
 
 	// do something!
 	go func() {
