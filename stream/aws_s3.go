@@ -1,9 +1,8 @@
 package stream
 
-
 import (
 	"strings"
-	"net/http"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -13,10 +12,10 @@ import (
 )
 
 type S3 struct {
-	URL    string
-	Header http.Header
-	Args   map[string]string
-	sess   *session.Session
+	Region     string
+	BucketName string
+	Args       map[string]string
+	sess       *session.Session
 }
 
 func (s *S3) Connect() (err error) {
@@ -50,4 +49,8 @@ func (s *S3) Write(message string) (err error) {
 	}
 
 	return
+}
+
+func (s *S3) Info() {
+	log.Info("Region: ", s.Region)
 }
