@@ -51,3 +51,7 @@ func (w *WebSocket) Read() (channel chan string, err error) {
 	}()
 	return
 }
+
+func (w *WebSocket) Info() {
+	log.Info("URL: ", w.URL)
+}

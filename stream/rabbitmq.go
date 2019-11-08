@@ -95,3 +95,7 @@ func (r *RabbitMQ) Read() (channel chan string, err error) {
 
 	return
 }
+
+func (r *RabbitMQ) Info() {
+	log.Info("Args: ", r.Args)
+}

@@ -16,3 +16,7 @@ func (s *Stdout) Write(message string) (err error) {
 	_, err = fmt.Println(message)
 	return
 }
+
+func (s *Stdout) Info() {
+	return
+}
