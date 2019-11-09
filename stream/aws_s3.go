@@ -1,10 +1,10 @@
 package stream
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 
@@ -15,33 +15,26 @@ type S3 struct {
 	Region     string
 	BucketName string
 	Args       map[string]string
-	sess       *session.Session
+	Sess       *session.Session
 }
 
 func (s *S3) Connect() (err error) {
-	// AWS setup
-	s.sess, err = session.NewSession(&aws.Config{
-		Region:      aws.String(s.Args["awsRegion"]),
-		Credentials: credentials.NewStaticCredentials(s.Args["awsAccessKey"], s.Args["awsSecretKey"], ""),
-	})
-	if err != nil {
-		// Handle Session creation error
-		log.Errorln("Error creating session: ", err)
-	}
+	// local files -> S3 collector goroutine
 	return
 }
 
 func (s *S3) Disconnect() (err error) {
-	return nil
+	return
 }
 
 func (s *S3) Write(message string) (err error) {
-	uploader := s3manager.NewUploader(s.sess)
+	uploader := s3manager.NewUploader(s.Sess)
 
-	// Upload the file to S3.
+	// Upload the file to S3
+	path := fmt.Sprintf("%s/test", s.Args["key"])
 	_, err = uploader.Upload(&s3manager.UploadInput{
-		Bucket: aws.String(s.Args["bucketName"]),
-		Key:    aws.String(s.Args["key"]),
+		Bucket: aws.String(s.BucketName),
+		Key:    aws.String(path),
 		Body:   strings.NewReader(message),
 	})
 	if err != nil {
@@ -52,5 +45,5 @@ func (s *S3) Write(message string) (err error) {
 }
 
 func (s *S3) Info() {
-	log.Info("Region: ", s.Region)
+	log.Info("BucketName: ", s.BucketName)
 }
