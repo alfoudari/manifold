@@ -6,8 +6,6 @@ import (
 	"reflect"
 
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/text/language"
-	textMessage "golang.org/x/text/message"
 )
 
 type Source interface {
@@ -53,8 +51,7 @@ func Flow(src Source, dest Destination) {
 			dest.Write(message)
 
 			stat.count++
-			p := textMessage.NewPrinter(language.English)
-			p.Printf("\rSent messages: %d", stat.count)
+			log.Println("Sent messages: ", stat.count)
 		}
 	}()
 
