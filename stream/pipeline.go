@@ -51,7 +51,9 @@ func Flow(src Source, dest Destination) {
 			dest.Write(message)
 
 			stat.count++
-			log.Println("Sent messages: ", stat.count)
+			if stat.count % 100 == 0 {
+				log.Println("Sent messages: ", stat.count)
+			}
 		}
 	}()
 
