@@ -19,8 +19,17 @@ import (
 type S3 struct {
 	Region     string
 	BucketName string
+	Config     *S3Config
 	Args       map[string]string
 	Sess       *session.Session
+	buffer 	   *buffer
+}
+
+type S3Config struct {
+	Folder string
+	CommitFileSize int
+	CommitDuration int
+	UploadEvery int
 }
 
 type buffer struct {
@@ -28,21 +37,20 @@ type buffer struct {
 	messages chan string
 }
 
-var buf buffer
-
 func (s *S3) Connect() (err error) {
-	// overwrite buf.path with Args, if specified
-	if val, ok := s.Args["localBufferPath"]; ok {
-		buf.path = val
+	s.buffer = &buffer{}
+	// overwrite buffer.path with Args, if specified
+	if val, ok := s.Args["bufferPath"]; ok {
+		s.buffer.path = val
 	} else {
 		// default
-		buf.path = "/tmp/manifold/aws_s3/"
+		s.buffer.path = "/tmp/manifold/aws_s3/"
 	}
 
 	// create messages channel
-	buf.messages = make(chan string, 1000)
+	s.buffer.messages = make(chan string, 1000)
 	// create a collector
-	go s.collector(buf)
+	go s.collector()
 	// create an uploader
 	go s.uploader()
 
@@ -50,51 +58,58 @@ func (s *S3) Connect() (err error) {
 }
 
 func (s *S3) Disconnect() (err error) {
-	close(buf.messages)
+	close(s.buffer.messages)
 	return
 }
 
 func (s *S3) Write(message string) (err error) {
-	buf.messages <- message
+	s.buffer.messages <- message
 	return
 }
 
 func (s *S3) Info() {
-	log.Info("BucketName: ", s.BucketName)
+	log.Info("S3.BucketName: ", s.BucketName)
+	log.Infof("S3Config.CommitFileSize: every %d KB\n", s.Config.CommitFileSize)
+	log.Infof("S3Config.CommitDuration: every %d minutes\n", s.Config.CommitDuration)
+	log.Infof("S3Config.UploadEvery: %d seconds\n", s.Config.UploadEvery)
 }
 
 // Receive data on messages channel and write them
 // to buf.path. 
 //
 // Files are aggregated on a 5 minutes interval.
-func (s *S3) collector(buf buffer) {
+func (s *S3) collector() {
 	// create buf.path if it doesn't exist
-	err := os.MkdirAll(buf.path, os.ModePerm)
+	err := os.MkdirAll(s.buffer.path, os.ModePerm)
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	timeCommitted := time.Now()
 	for {
 		// read buf.messages channel
-		msg, ok := <-buf.messages
+		msg, ok := <-s.buffer.messages
 		if ok == false {
 			return // channel closed
 		}
 
 		// check if file 'buffer' exists
-		path := filepath.Join(buf.path, "buffer")
+		path := filepath.Join(s.buffer.path, "buffer")
 		exists, err := fileExists(path)
 		if err != nil {
 			log.Fatal(err)
 		}
 
-		// commit buffer if it's >= 100 KB
+		// commit buffer if it's >= Config.CommitFileSize KB
+		// or time elapsed >= Config.CommitDuration minutes
 		info, err := os.Stat(path)
-		if exists && info.Size() >= 100*1024 {
+		fileSizeReached := info.Size() >= int64(s.Config.CommitFileSize) * 1024
+		durationElapsed := int(time.Since(timeCommitted).Minutes()) >= s.Config.CommitDuration
+		if exists && (fileSizeReached || durationElapsed) {
 			// current point in time
 			currentTime := time.Now()
 			// organize buffer by creating a folder for each day
-			commitDir := filepath.Join(buf.path, currentTime.Format("2006-01-02"))
+			commitDir := filepath.Join(s.buffer.path, currentTime.Format("2006-01-02"))
 			// create the day directory if it doesn't exists
 			err := os.MkdirAll(commitDir, os.ModePerm)
 			if err != nil {
@@ -108,6 +123,7 @@ func (s *S3) collector(buf buffer) {
 				log.Fatal(err)
 			}
 
+			timeCommitted = time.Now()
 			log.Info("Committed file ", commitPath)
 		}
  
@@ -121,11 +137,10 @@ func (s *S3) collector(buf buffer) {
 
 // Scan buf.path for files and upload them once found.
 func (s *S3) uploader() {
-	var stat stat
 	uploader := s3manager.NewUploader(s.Sess)
 	for {
 		var files []string
-		err := filepath.Walk(buf.path, func(path string, info os.FileInfo, err error) error {
+		err := filepath.Walk(s.buffer.path, func(path string, info os.FileInfo, err error) error {
 			if info.IsDir() || info.Name() == "buffer" {
 				return nil
 			}
@@ -139,7 +154,7 @@ func (s *S3) uploader() {
 		}
 		for _, file := range files {
 			// truncate buf.path (S3 path)
-			key := strings.Replace(file, buf.path, "", 1)
+			key := strings.Replace(file, s.buffer.path, "", 1)
 			// read file
 			body, err := ioutil.ReadFile(file)
 			if err != nil {
@@ -160,12 +175,9 @@ func (s *S3) uploader() {
 				log.Errorln("Couldn't remove file: ", file)
 			}
 
-			stat.count++
-			if stat.count % 1 == 0 {
-				log.Println("Upload count: ", stat.count)
-			}
+			log.Info("Uploaded ", key)
 		}
-		time.Sleep(time.Duration(5)*time.Second)
+		time.Sleep(time.Duration(s.Config.UploadEvery)*time.Second)
 	}
 }
 
