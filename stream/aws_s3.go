@@ -141,6 +141,10 @@ func (s *S3) uploader() {
 	for {
 		var files []string
 		err := filepath.Walk(s.buffer.path, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				log.Error("Walkpath error: ", err)
+				return err
+			}
 			if info.IsDir() || info.Name() == "buffer" {
 				return nil
 			}
