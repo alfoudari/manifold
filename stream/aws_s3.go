@@ -189,7 +189,6 @@ func (s *S3) uploader() {
 			key := strings.Replace(file, s.buffer.path, "", 1)
 			// prefix it with Config.Folder
 			key = filepath.Join(s.Config.Folder, key)
-			log.Info(key)
 			// read file
 			body, err := ioutil.ReadFile(file)
 			if err != nil {
