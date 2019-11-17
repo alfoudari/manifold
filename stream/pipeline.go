@@ -42,24 +42,22 @@ func Flow(src Source, dest Destination) {
 	dest.Info()
 
 	// do something!
+	var stat stat
 	go func() {
-		var stat stat
-
 		channel, _ := src.Read()
+
+		log.Info("Flowing data...")
 
 		for message := range channel {
 			dest.Write(message)
-
 			stat.count++
-			if stat.count % 100 == 0 {
-				log.Println("Sent messages: ", stat.count)
-			}
 		}
 	}()
 
 	// Interrupt received
 	<-interrupt
 	log.Info("Interrupt received.")
+	log.Info("Sent messages: ", stat.count)
 
 	// Disconnect
 	src.Disconnect()
