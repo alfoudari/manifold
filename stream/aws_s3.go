@@ -2,12 +2,12 @@ package stream
 
 import (
 	"os"
-	// "fmt"
-	"time"
-	"strings"
+
 	"bytes"
-	"path/filepath"
 	"io/ioutil"
+	"path/filepath"
+	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -22,18 +22,18 @@ type S3 struct {
 	Config     *S3Config
 	Args       map[string]string
 	Sess       *session.Session
-	buffer 	   *buffer
+	buffer     *buffer
 }
 
 type S3Config struct {
-	Folder string
+	Folder         string
 	CommitFileSize int
 	CommitDuration int
-	UploadEvery int
+	UploadEvery    int
 }
 
 type buffer struct {
-	path string
+	path     string
 	messages chan string
 }
 
@@ -75,7 +75,7 @@ func (s *S3) Info() {
 }
 
 // Receive data on messages channel and write them
-// to buf.path. 
+// to buf.path.
 //
 // Files are aggregated on a 5 minutes interval.
 func (s *S3) collector() {
@@ -85,54 +85,69 @@ func (s *S3) collector() {
 		log.Fatal(err)
 	}
 
-	timeCommitted := time.Now()
-	for {
-		// read buf.messages channel
-		msg, ok := <-s.buffer.messages
-		if ok == false {
-			return // channel closed
-		}
+	bufferPath := filepath.Join(s.buffer.path, "buffer")
 
-		// check if file 'buffer' exists
-		path := filepath.Join(s.buffer.path, "buffer")
-		exists, err := fileExists(path)
-		if err != nil {
-			log.Fatal(err)
-		}
+	// read messages from channel and write them to a file
+	go func(bufferPath string) {
+		for {
+			// read buf.messages channel
+			msg, ok := <-s.buffer.messages
+			if ok == false {
+				return // channel closed
+			}
 
-		// commit buffer if it's >= Config.CommitFileSize KB
-		// or time elapsed >= Config.CommitDuration minutes
-		info, err := os.Stat(path)
-		fileSizeReached := info.Size() >= int64(s.Config.CommitFileSize) * 1024
-		durationElapsed := int(time.Since(timeCommitted).Minutes()) >= s.Config.CommitDuration
-		if exists && (fileSizeReached || durationElapsed) {
-			// current point in time
-			currentTime := time.Now()
-			// organize buffer by creating a folder for each day
-			commitDir := filepath.Join(s.buffer.path, currentTime.Format("2006-01-02"))
-			// create the day directory if it doesn't exists
-			err := os.MkdirAll(commitDir, os.ModePerm)
+			// append (or create) to buffer
+			err = appendFile(bufferPath, msg+"\n")
+			if err != nil {
+				log.Fatal(err)
+			}
+		}
+	}(bufferPath)
+
+	// roll files
+	go func(bufferPath string) {
+		timeCommitted := time.Now()
+		for {
+			// check if file 'buffer' exists
+			exists, err := fileExists(bufferPath)
 			if err != nil {
 				log.Fatal(err)
 			}
 
-			// rename buffer to the current time in nanoseconds
-			commitPath := filepath.Join(commitDir, currentTime.Format("150405.000000000"))
-			err = os.Rename(path, commitPath)
-			if err != nil {
-				log.Fatal(err)
+			if !exists {
+				// one second interval loop
+				time.Sleep(1 * time.Second)
+				continue
 			}
 
-			timeCommitted = time.Now()
-			log.Info("Committed file ", commitPath)
+			// commit buffer if it's >= Config.CommitFileSize KB
+			// or time elapsed >= Config.CommitDuration minutes
+			info, err := os.Stat(bufferPath)
+			fileSizeReached := info.Size() >= int64(s.Config.CommitFileSize)*1024
+			durationElapsed := int(time.Since(timeCommitted).Minutes()) >= s.Config.CommitDuration
+			if fileSizeReached || durationElapsed {
+				// current point in time
+				currentTime := time.Now()
+				// organize buffer by creating a folder for each day
+				commitDir := filepath.Join(s.buffer.path, currentTime.Format("2006-01-02"))
+				// create the day directory if it doesn't exists
+				err := os.MkdirAll(commitDir, os.ModePerm)
+				if err != nil {
+					log.Fatal(err)
+				}
+
+				// rename buffer to the current time in nanoseconds
+				commitPath := filepath.Join(commitDir, currentTime.Format("150405.000000000"))
+				err = os.Rename(bufferPath, commitPath)
+				if err != nil {
+					log.Fatal(err)
+				}
+
+				timeCommitted = time.Now()
+				log.Info("Committed file ", commitPath)
+			}
 		}
- 
-		// append (or create) to 'buffer'
-		err = appendFile(path, msg+"\n")
-		if err != nil {
-			log.Fatal(err)
-		}
-	}
+	}(bufferPath)
 }
 
 // Scan buf.path for files and upload them once found.
@@ -159,6 +174,9 @@ func (s *S3) uploader() {
 		for _, file := range files {
 			// truncate buf.path (S3 path)
 			key := strings.Replace(file, s.buffer.path, "", 1)
+			// prefix it with Config.Folder
+			key = filepath.Join(s.Config.Folder, key)
+			log.Info(key)
 			// read file
 			body, err := ioutil.ReadFile(file)
 			if err != nil {
@@ -181,20 +199,20 @@ func (s *S3) uploader() {
 
 			log.Info("Uploaded ", key)
 		}
-		time.Sleep(time.Duration(s.Config.UploadEvery)*time.Second)
+		time.Sleep(time.Duration(s.Config.UploadEvery) * time.Second)
 	}
 }
 
 // If file doesn't exist, create it, or append to it
 func appendFile(path string, text string) (err error) {
-    f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-    if err != nil {
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
 		return
-    }
-    if _, err := f.Write([]byte(text)); err != nil {
+	}
+	if _, err := f.Write([]byte(text)); err != nil {
 		return err
-    }
-    if err := f.Close(); err != nil {
+	}
+	if err := f.Close(); err != nil {
 		return err
 	}
 	return
