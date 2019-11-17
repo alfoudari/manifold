@@ -1,6 +1,7 @@
 package stream
 
 import (
+	"io"
 	"os"
 
 	"bytes"
@@ -154,8 +155,20 @@ func (s *S3) collector() {
 func (s *S3) uploader() {
 	uploader := s3manager.NewUploader(s.Sess)
 	for {
+		// check if folder exists
+		exists, err := dirExists(s.buffer.path)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		if !exists {
+			// one second interval loop
+			time.Sleep(1 * time.Second)
+			continue
+		}
+
 		var files []string
-		err := filepath.Walk(s.buffer.path, func(path string, info os.FileInfo, err error) error {
+		err = filepath.Walk(s.buffer.path, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				log.Error("Walkpath error: ", err)
 				return err
@@ -226,4 +239,28 @@ func fileExists(path string) (exists bool, err error) {
 	}
 
 	return
+}
+
+func dirExists(path string) (exists bool, err error) {
+	info, err := os.Stat(path)
+	exists = !os.IsNotExist(err) && info.IsDir()
+	if !exists {
+		err = nil
+	}
+
+	return
+}
+
+func dirEmpty(name string) (bool, error) {
+	f, err := os.Open(name)
+	if err != nil {
+		return false, err
+	}
+	defer f.Close()
+
+	_, err = f.Readdirnames(1) // Or f.Readdir(1)
+	if err == io.EOF {
+		return true, nil
+	}
+	return false, err // Either not empty or error, suits both cases
 }
