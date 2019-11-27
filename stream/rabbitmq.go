@@ -31,7 +31,8 @@ func (r *RabbitMQ) Connect() (err error) {
 
 func (r *RabbitMQ) Disconnect() (err error) {
 	if r.conn == nil {
-		log.Fatal("RabbitMQ.Disconnect(): conn is nil")
+		log.Warn("RabbitMQ.Disconnect(): conn is nil")
+		return
 	}
 
 	log.Info("Closing rabbitmq connection...")
