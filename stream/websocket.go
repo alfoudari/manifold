@@ -50,8 +50,11 @@ func (w *WebSocket) Connect() (err error) {
 }
 
 func (w *WebSocket) Disconnect() (err error) {
+	log.Info("WebSocket: Disconnect()")
+
 	// send a disconnect signal
 	if _, ok := w.Args["reconnect_every"]; ok {
+		log.Info("Sending disc signal")
 		w.disc <- true
 	}
 
