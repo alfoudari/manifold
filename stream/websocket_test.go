@@ -35,7 +35,7 @@ func TestWebSocket_Disonnect(t *testing.T) {
 	fmt.Println("Test server created")
 	defer server.Close()
 
-	src := WebSocket{
+	src := &WebSocket{
 		URL:    "ws" + strings.TrimPrefix(server.URL, "http"),
 		Header: http.Header{},
 	}
@@ -74,7 +74,7 @@ func TestWebSocket_Reconnect(t *testing.T) {
 	fmt.Println("Test server created")
 	defer server.Close()
 
-	src := WebSocket{
+	src := &WebSocket{
 		URL:    "ws" + strings.TrimPrefix(server.URL, "http"),
 		Header: http.Header{},
 		Args: map[string]string{
@@ -84,17 +84,15 @@ func TestWebSocket_Reconnect(t *testing.T) {
 	src.Connect()
 
 	msg, err := src.Read()
-	for i := 0; i < 30; i++ {
-		src.Write("echo")
+	for i := 0; i < 100; i++ {
+		src.Write(fmt.Sprintf("echo %d", i+1))
 		if err != nil {
 			log.Info("couldn't write")
 			t.Fatal(err)
 		}
 		fmt.Println("msg: ", <-msg)
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(10 * time.Millisecond)
 	}
-
-	time.Sleep(3 * time.Second)
 
 	log.Warn("Trying to disconnect...")
 	src.Disconnect()
