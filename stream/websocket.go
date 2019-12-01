@@ -94,8 +94,7 @@ func (w *WebSocket) Reconnect() (err error) {
 			log.Warn("Reconnect(): Received disconnect signal")
 			w.wg.Done()
 			return
-		default:
-			time.Sleep(reconnectEvery)
+		case <-time.After(reconnectEvery):
 			log.Warn("Swapping connections...")
 
 			// connect to a websocket connection
