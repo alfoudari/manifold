@@ -28,3 +28,7 @@ func (j *JSON) Transform(message string) (transformed string, err error) {
 
 	return
 }
+
+func (j *JSON) Info() {
+	log.Info("Using JSON Transformer.")
+}
