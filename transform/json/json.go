@@ -1,8 +1,10 @@
 package json
 
 import (
-	log "github.com/sirupsen/logrus"
 	"encoding/json"
+	"reflect"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type JSON struct {
@@ -19,7 +21,12 @@ func (j *JSON) Transform(message string) (transformed string, err error) {
 
 	// do stuff
 	for k, v := range j.Append {
-		obj[k] = v
+		switch reflect.TypeOf(v).Kind() {
+		case reflect.Func:
+			obj[k] = v.(func() interface{})()
+		default:
+			obj[k] = v
+		}
 	}
 
 	// marshal
