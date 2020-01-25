@@ -1,8 +1,9 @@
 package json
 
 import (
-	"fmt"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestTransform(t *testing.T) {
@@ -13,11 +14,12 @@ func TestTransform(t *testing.T) {
 	}
 
 	json := `{"a":1, "b":"2", "c":true, "d":null}`
+	json_transformed := `{"a":1, "b":"2", "c":true, "d":null, "key":1.5}`
 
 	transformed, err := transformer.Transform(json)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	fmt.Println(transformed)
+	assert.JSONEq(t, transformed, json_transformed)
 }
