@@ -10,12 +10,18 @@ import (
 )
 
 type Kinesis struct {
-	ConsumerName 	string
-	StreamARN    	string
-	AWSSess      	*session.Session
-	client			*kinesis.Kinesis
-	consumer     	*kinesis.Consumer
-	stream		 	*kinesis.SubscribeToShardEventStream
+	ConsumerName string
+	StreamARN    string
+	AWSSess      *session.Session
+	Config       *KinesisConfig
+	client       *kinesis.Kinesis
+	consumer     *kinesis.Consumer
+	stream       *kinesis.SubscribeToShardEventStream
+}
+
+type KinesisConfig struct {
+	PartitionKey string
+	StreamName   string
 }
 
 func (k *Kinesis) Connect() (err error) {
@@ -38,7 +44,7 @@ func (k *Kinesis) Disconnect() (err error) {
 }
 
 func (k *Kinesis) Info() {
-	log.Info("Kinesis.ConsumerName: ", k.ConsumerName)
+	log.Infof("Kinesis.Config: %+v", k.Config)
 }
 
 func (k *Kinesis) Read() (channel chan string, err error) {
@@ -46,7 +52,7 @@ func (k *Kinesis) Read() (channel chan string, err error) {
 	k.consumer, err = getConsumer(k.client, k.ConsumerName, k.StreamARN)
 	if err != nil {
 		log.Fatalln("Error getting a consumer: ", err)
-		return	
+		return
 	}
 
 	// subscribe
@@ -74,11 +80,11 @@ func (k *Kinesis) Read() (channel chan string, err error) {
 	return
 }
 
-func (k *Kinesis) Write(message string, partitionKey string, streamName string) (err error) {
+func (k *Kinesis) Write(message string) (err error) {
 	record := kinesis.PutRecordInput{
 		Data:         []byte(message),
-		PartitionKey: &partitionKey,
-		StreamName:   &streamName,
+		PartitionKey: &k.Config.PartitionKey,
+		StreamName:   &k.Config.StreamName,
 	}
 	_, err = k.client.PutRecord(&record)
 	if err != nil {
@@ -122,7 +128,7 @@ func getConsumer(svc *kinesis.Kinesis, consumerName string, awsKinesisStreamARN 
 				log.Error("describeConsumer: ", err)
 				return nil, err
 			}
-		
+
 		}
 		log.Info(consumerDesc)
 
@@ -207,7 +213,6 @@ func deregisterConsumer(svc *kinesis.Kinesis, consumerName string, awsKinesisStr
 
 	return
 }
-
 
 // Subscribe to a shard on a Kinesis Data Stream.
 func shardSubscribe(svc *kinesis.Kinesis, consumer *kinesis.Consumer, shardId string, shardIteratorType string) (eventStream *kinesis.SubscribeToShardEventStream, err error) {
