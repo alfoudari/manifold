@@ -5,6 +5,7 @@ import (
 	"os/signal"
 
 	"github.com/abstractpaper/manifold/stream"
+	swissarmy "github.com/abstractpaper/manifold/examples"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -19,9 +20,9 @@ func main() {
 	signal.Notify(interrupt, os.Interrupt, os.Kill)
 	
 	// aws config
-	awsRegion := "us-east-1"
-	awsAccessKey := "XXXXXXXXXXXXXXXXXXXX"
-	awsSecretKey := "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+	awsRegion := swissarmy.GetEnv("MANIFOLD_AWS_REGION", "us-east-1")
+	awsAccessKey := swissarmy.GetEnv("MANIFOLD_AWS_ACCESS_KEY", "")
+	awsSecretKey := swissarmy.GetEnv("MANIFOLD_AWS_SECRET_KEY", "")
 
 	// AWS setup
 	sess, err := session.NewSession(&aws.Config{
