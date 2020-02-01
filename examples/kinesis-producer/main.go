@@ -37,9 +37,9 @@ func main() {
 
 	dest := stream.Kinesis{
 		AWSSess:    sess,
-		Config:		&stream.KinesisConfig{
-			PartitionKey: 	"partition1",
-			StreamName:		"test",
+		Args:		map[string]string{
+			"partitionKey": 	"partition1",
+			"streamName":		"test",
 		},
 	}
 

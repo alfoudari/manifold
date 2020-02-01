@@ -1,6 +1,7 @@
 package stream
 
 import (
+	"errors"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -13,20 +14,15 @@ type Kinesis struct {
 	ConsumerName string
 	StreamARN    string
 	AWSSess      *session.Session
-	Config       *KinesisConfig
+	Args         map[string]string
 	client       *kinesis.Kinesis
 	consumer     *kinesis.Consumer
 	stream       *kinesis.SubscribeToShardEventStream
 }
 
-type KinesisConfig struct {
-	PartitionKey string
-	StreamName   string
-}
-
 func (k *Kinesis) Connect() (err error) {
 	// kinesis client
-	k.client = kinesis.New(k.AWSSess)
+    k.client = kinesis.New(k.AWSSess)
 
 	return
 }
@@ -44,10 +40,20 @@ func (k *Kinesis) Disconnect() (err error) {
 }
 
 func (k *Kinesis) Info() {
-	log.Infof("Kinesis.Config: %+v", k.Config)
+	log.Infof("Kinesis.Args: %+v", k.Args)
 }
 
 func (k *Kinesis) Read() (channel chan string, err error) {
+    shardID, ok := k.Args["shardId"]
+    if !ok {
+        return nil, errors.New("shardId must be specified in Args.")
+    }
+
+    shardIterator, ok := k.Args["shardIterator"]
+    if !ok {
+        return nil, errors.New("shardIterator must be specified in Args.")
+    }
+
 	// get a consumer
 	k.consumer, err = getConsumer(k.client, k.ConsumerName, k.StreamARN)
 	if err != nil {
@@ -57,9 +63,7 @@ func (k *Kinesis) Read() (channel chan string, err error) {
 
 	// subscribe
 	log.Println("Subscribing to shard.")
-	shardId := "shardId-000000000000"
-	shardIteratorType := "LATEST"
-	k.stream, err = shardSubscribe(k.client, k.consumer, shardId, shardIteratorType)
+	k.stream, err = shardSubscribe(k.client, k.consumer, shardID, shardIterator)
 	if err != nil {
 		log.Fatalln("Error subscribing to a shard: ", err)
 	}
@@ -81,15 +85,25 @@ func (k *Kinesis) Read() (channel chan string, err error) {
 }
 
 func (k *Kinesis) Write(message string) (err error) {
+    partitionKey, ok := k.Args["partitionKey"]
+    if !ok {
+        return errors.New("partitionKey must be specified in Args.")
+    }
+
+    streamName, ok := k.Args["streamName"]
+    if !ok {
+        return errors.New("streamName must be specified in Args.")
+    }
+
 	record := kinesis.PutRecordInput{
 		Data:         []byte(message),
-		PartitionKey: &k.Config.PartitionKey,
-		StreamName:   &k.Config.StreamName,
+		PartitionKey: &partitionKey,
+		StreamName:   &streamName,
 	}
 	_, err = k.client.PutRecord(&record)
 	if err != nil {
 		log.Errorln("PutRecord failed: ", err)
-	}
+    }
 
 	return
 }

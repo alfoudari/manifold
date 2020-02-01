@@ -37,6 +37,10 @@ func main() {
 		ConsumerName: "test-consumer",
 		StreamARN:    "arn:aws:kinesis:us-east-1:999999999999:stream/test",
 		AWSSess:      sess,
+		Args:		  map[string]string{
+			"shardId":       "shardId-000000000000",
+			"shardIterator": "LATEST",
+		},
 	}
 
 	dest := stream.Stdio{}
