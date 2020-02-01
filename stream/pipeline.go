@@ -48,7 +48,10 @@ func Flow(src Source, transformer transform.Transformer, dest Destination) {
 	// do something!
 	var stat stat
 	go func() {
-		channel, _ := src.Read()
+		channel, err := src.Read()
+		if err != nil {
+			log.Fatal("src.Read(): ", err)
+		}
 
 		log.Info("Flowing data...")
 
@@ -61,7 +64,7 @@ func Flow(src Source, transformer transform.Transformer, dest Destination) {
 				}
 			}
 			err := dest.Write(message)
-			if err != nil {
+			if err == nil {
 				stat.count++
 			} else {
 				log.Error(err)
