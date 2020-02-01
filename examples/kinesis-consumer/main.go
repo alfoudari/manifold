@@ -5,7 +5,7 @@ import (
 	"os/signal"
 
 	"github.com/abstractpaper/manifold/stream"
-	swissarmy "github.com/abstractpaper/manifold/examples"
+	"github.com/abstractpaper/swissarmy"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"

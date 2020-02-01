@@ -1,7 +1,6 @@
 package stream
 
 import (
-	"io"
 	"os"
 
 	"bytes"
@@ -13,7 +12,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
-
+	"github.com/abstractpaper/swissarmy"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -98,7 +97,7 @@ func (s *S3) collector() {
 			}
 
 			// append (or create) to buffer
-			err = appendFile(bufferPath, msg+"\n")
+			err = swissarmy.AppendFile(bufferPath, msg+"\n")
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -110,7 +109,7 @@ func (s *S3) collector() {
 		timeCommitted := time.Now()
 		for {
 			// check if file 'buffer' exists
-			exists, err := fileExists(bufferPath)
+			exists, err := swissarmy.FileExists(bufferPath)
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -156,7 +155,7 @@ func (s *S3) uploader() {
 	uploader := s3manager.NewUploader(s.Sess)
 	for {
 		// check if folder exists
-		exists, err := dirExists(s.buffer.path)
+		exists, err := swissarmy.DirExists(s.buffer.path)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -213,53 +212,4 @@ func (s *S3) uploader() {
 		}
 		time.Sleep(time.Duration(s.Config.UploadEvery) * time.Second)
 	}
-}
-
-// If file doesn't exist, create it, or append to it
-func appendFile(path string, text string) (err error) {
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return
-	}
-	if _, err := f.Write([]byte(text)); err != nil {
-		return err
-	}
-	if err := f.Close(); err != nil {
-		return err
-	}
-	return
-}
-
-func fileExists(path string) (exists bool, err error) {
-	info, err := os.Stat(path)
-	exists = !os.IsNotExist(err) && !info.IsDir()
-	if !exists {
-		err = nil
-	}
-
-	return
-}
-
-func dirExists(path string) (exists bool, err error) {
-	info, err := os.Stat(path)
-	exists = !os.IsNotExist(err) && info.IsDir()
-	if !exists {
-		err = nil
-	}
-
-	return
-}
-
-func dirEmpty(name string) (bool, error) {
-	f, err := os.Open(name)
-	if err != nil {
-		return false, err
-	}
-	defer f.Close()
-
-	_, err = f.Readdirnames(1) // Or f.Readdir(1)
-	if err == io.EOF {
-		return true, nil
-	}
-	return false, err // Either not empty or error, suits both cases
 }
