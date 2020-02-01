@@ -60,8 +60,12 @@ func Flow(src Source, transformer transform.Transformer, dest Destination) {
 					log.Error("Failed to transform message: ", err)
 				}
 			}
-			dest.Write(message)
-			stat.count++
+			err := dest.Write(message)
+			if err != nil {
+				stat.count++
+			} else {
+				log.Error(err)
+			}
 		}
 	}()
 
