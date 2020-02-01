@@ -1,4 +1,16 @@
-Manifold package.
+Manifold is a tool that works as an integration layer for real time systems. It currently supports the following interfaces:
+- AWS S3
+- AWS Kinesis
+- RabbitMQ
+- Stdio
+- WebSocket connections
+
+To be implemented:
+- Apache Kafka
+
+# Illustration
+
+![Manifold Illustration](/docs/merlin_illustration.png)
 
 # AWS S3
 
