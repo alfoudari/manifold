@@ -10,7 +10,7 @@ To be implemented:
 
 # Illustration
 
-![Manifold Illustration](/docs/merlin_illustration.png)
+![Manifold Illustration](/docs/manifold_illustration.png)
 
 # AWS S3
 
