@@ -1,10 +1,12 @@
 package stream
 
 import (
-	"github.com/abstractpaper/manifold/transform"
 	"os"
 	"os/signal"
 	"reflect"
+	"time"
+
+	"github.com/abstractpaper/manifold/transform"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -34,8 +36,8 @@ func Flow(src Source, transformer transform.Transformer, dest Destination) {
 	signal.Notify(interrupt, os.Interrupt, os.Kill)
 
 	// Connect
-	src.Connect()
-	dest.Connect()
+	retry(src.Connect, interrupt)
+	retry(dest.Connect, interrupt)
 
 	log.Info("Source is: ", reflect.TypeOf(src))
 	src.Info()
@@ -80,4 +82,38 @@ func Flow(src Source, transformer transform.Transformer, dest Destination) {
 	// Disconnect
 	src.Disconnect()
 	dest.Disconnect()
+}
+
+func retry(f func() error, interrupt chan os.Signal) {
+	var sleep time.Duration = 2
+	var retryTimestamp time.Time = time.Now()
+	for {
+		select {
+		case <-interrupt:
+			log.Warn("Interrupt/kill signal received, quitting.")
+			os.Exit(1)
+		default:
+			// call f() if the current time passed retryTimestamp
+			if time.Now().After(retryTimestamp) {
+				err := f()
+				if err != nil {
+					log.Error(err)
+
+					// couldn't connect, retry.
+					log.Infof("Retrying in %d seconds", sleep)
+					retryTimestamp = time.Now().Add(sleep * time.Second)
+
+					// increase exponentially, hard cap at ~ 1 minute (64 seconds).
+					if sleep < 64 {
+						sleep = sleep * 2
+					}
+				} else {
+					return
+				}
+			}
+
+			// loop every second, check for signals and timeline in each iteration.
+			time.Sleep(1 * time.Second)
+		}
+	}
 }

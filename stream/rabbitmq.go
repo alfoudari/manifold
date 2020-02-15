@@ -20,11 +20,12 @@ func (r *RabbitMQ) Connect() (err error) {
 	log.Info("Establishing rabbitmq connection...")
 	r.conn, err = amqp.Dial(r.URL)
 	if err != nil {
-		log.Fatal("RabbitMQ: Failed to connect: ", err)
+		log.Error("RabbitMQ: Failed to connect: ", err)
+		return
 	}
 	r.channel, err = r.conn.Channel()
 	if err != nil {
-		log.Fatal("RabbitMQ: Failed to open a channel: ", err)
+		log.Error("RabbitMQ: Failed to open a channel: ", err)
 	}
 	return
 }
