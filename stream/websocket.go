@@ -11,6 +11,17 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// WebSocket represents a websocket connection.
+//
+// Args:
+//   reconnect_every: n
+//   Attempt to reconnect every n time is passed.
+//
+// Example:
+//
+//   Args: map[string]string{
+//       "reconnect_every": strconv.Itoa(int(1 * time.Minute)),
+//   }
 type WebSocket struct {
 	URL    string // URL of websocket connection
 	Header http.Header
@@ -21,21 +32,26 @@ type WebSocket struct {
 	wg     sync.WaitGroup
 }
 
+// Info logs the websocket connection information.
 func (w *WebSocket) Info() {
 	log.Info("URL: ", w.URL)
 }
 
+// getConnection attempts to connect the URL in WebSocket
+// and return a connection.
 func getConnection(w *WebSocket) (conn *websocket.Conn) {
-	// connect to a websocket connection
 	log.Info("Establishing websocket connection...")
 	conn, _, err := websocket.DefaultDialer.Dial(w.URL, w.Header)
 	if err != nil {
-		log.Fatal("Dial: ", err)
+		log.Fatal("getConnection; websocket.Dial: ", err)
 	}
 	log.Info("Websocket connection established.")
 	return
 }
 
+// Connect creates a new connection and launches a go
+// routine to reconnect periodically if `reconnect_every` is
+// in Args.
 func (w *WebSocket) Connect() (err error) {
 	w.conn = getConnection(w)
 	w.disc = make(chan bool)
@@ -49,6 +65,9 @@ func (w *WebSocket) Connect() (err error) {
 	return
 }
 
+// Disconnect sends a disconnect signal so all go routines
+// and interested parties get a notification to clean up,
+// then it closes the web socket connection.
 func (w *WebSocket) Disconnect() (err error) {
 	log.Info("WebSocket: Disconnect()")
 
@@ -73,6 +92,11 @@ func (w *WebSocket) Disconnect() (err error) {
 	return
 }
 
+// Reconnect runs a loop to swap the websocket connection
+// periodically.
+//
+// The default reconnect period is 1 minute, it is used
+// when the value of `reonnect_every` is not readable.
 func (w *WebSocket) Reconnect() (err error) {
 	// wait
 	reconnectEvery := 1 * time.Minute
@@ -108,6 +132,7 @@ func (w *WebSocket) Reconnect() (err error) {
 	}
 }
 
+// Write writes `message` (transformed into bytes) to the websocket connection.
 func (w *WebSocket) Write(message string) (err error) {
 	err = w.conn.WriteMessage(websocket.TextMessage, []byte(message))
 	if err != nil {
@@ -116,6 +141,15 @@ func (w *WebSocket) Write(message string) (err error) {
 	return
 }
 
+// Read launches a go routine that runs a loop to read from
+// the websocket connection.
+//
+// Read also attempts to get a new connection if reading from
+// the existing connection raises an error. This is to avoid
+// repeated ReadMessage errors that would panic the process.
+// It is useful for cases when the server you are connecting
+// to drops the connection from its side. If the connection
+// attempt fails, the process exits.
 func (w *WebSocket) Read() (channel chan string, err error) {
 	channel = make(chan string)
 	go func() {
@@ -126,6 +160,8 @@ func (w *WebSocket) Read() (channel chan string, err error) {
 			log.Debug("ReadMessage() done")
 			if err != nil {
 				log.Warning("ReadMessage() error: ", err)
+				w.conn = getConnection(w)
+				log.Warning("Connection swapped successfully.")
 				continue
 			}
 
@@ -137,6 +173,7 @@ func (w *WebSocket) Read() (channel chan string, err error) {
 	return
 }
 
+// closeMessage closes the websocet connection in `conn`.
 func closeWebsocket(conn *websocket.Conn) (err error) {
 	if conn == nil {
 		err = errors.New("conn is nil")
