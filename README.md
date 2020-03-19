@@ -18,7 +18,7 @@ For all the interfaces listed below, there are two types of arguments that can b
 * Struct members: these are direct members of a struct (first letter is capitalized).
 * KV Arguments: this is a dictionary or a map (first letter is small).
 
-Example:
+Let's take an example for AWS S3 struct:
 
 ```go
 type S3 struct {
@@ -31,7 +31,7 @@ type S3 struct {
 }
 ```
 
-All the above attributes can be set directly, however `Args` is added for further flexibility:
+All the above (exported) attributes can be set directly, however `Args` is added for further flexibility:
 
 ```go
 Args: map[string]string{
@@ -44,6 +44,18 @@ Args: map[string]string{
 ![Manifold Illustration](/docs/manifold_illustration.png)
 
 The yellow boxes are manifold processes that stream data between their connected systems.
+
+# AWS Kinesis
+
+Stream data from/to an AWS Kinesis stream.
+
+## Consumer
+
+You can find a full consumer example [here](./examples/kinesis-consumer/main.go).
+
+## Producer
+
+You can find a full producer example [here](./examples/kinesis-producer/main.go).
 
 # AWS S3
 
@@ -96,3 +108,15 @@ Connect to any websocket connection with the following aspects considered:
 
 * You can specify `reconnect_every` to swap the connection every time this period passes.
 * If the server side closes the connection for any reason then a new connection is made, this tackles unexpected adhoc closure. If the new connection cannot be made, the process exits.
+
+Example:
+
+```go
+src := stream.WebSocket{
+    URL:    "wss://stream.universe.com:9999",
+    Header: http.Header{"APIKEY": []string{kwargs["apiKey"]}},
+    Args: map[string]string{
+        "reconnect_every": strconv.Itoa(int(12 * time.Hour)),
+    },
+}
+```
