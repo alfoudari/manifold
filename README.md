@@ -1,3 +1,5 @@
+[![<abstractpaper>](https://circleci.com/gh/abstractpaper/manifold.svg?style=svg)](https://circleci.com/gh/abstractpaper/manifold)
+
 Manifold is a tool that can be useful for streaming data across systems/system components, particularly real time systems.
 
 It currently supports the following interfaces:
