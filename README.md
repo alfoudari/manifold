@@ -1,8 +1,8 @@
 Manifold is a tool that can be useful for streaming data across systems/system components, particularly real time systems.
 
 It currently supports the following interfaces:
-- AWS S3
 - AWS Kinesis
+- AWS S3
 - RabbitMQ
 - Stdio
 - WebSocket connections
@@ -12,7 +12,7 @@ To be implemented:
 
 Manifold is opinionated and biased towards being fault tolerant. Many things can go wrong in production systems and having a self-heal feature is vital in particular where data collection is happening and you want to minimize any collection loss/gap.
 
-## Arguments
+# Arguments
 
 For all the interfaces listed below, there are two types of arguments that can be specified:
 * Struct members: these are direct members of a struct (first letter is capitalized).
@@ -49,11 +49,11 @@ The yellow boxes are manifold processes that stream data between their connected
 
 Stream data from/to an AWS Kinesis stream.
 
-## Consumer
+### Consumer
 
 You can find a full consumer example [here](./examples/kinesis-consumer/main.go).
 
-## Producer
+### Producer
 
 You can find a full producer example [here](./examples/kinesis-producer/main.go).
 
@@ -102,12 +102,49 @@ dest := stream.S3{
 ```
 
 
+# RabbitMQ
+
+Stream data from/to RabbitMQ.
+
+### Consumer
+
+Example:
+
+```go
+dest := stream.RabbitMQ{
+    URL: fmt.Sprintf("amqp://username:password@%s/%s", rabbitMQEndPoint, rabbitMQVHost),
+    Header: nil,
+    Args: map[string]string{
+        "exchange": "logs",
+        "key":      "webserver_errors",
+    },
+}
+```
+
+### Producer
+
+Example:
+
+```go
+src := stream.RabbitMQ{
+    URL: fmt.Sprintf("amqp://username:password@%s/%s", rabbitMQEndPoint, rabbitMQVHost),
+    Header: nil,
+    Args: map[string]string{
+        "queue":    "webserver_errors_to_s3",
+        "consumer": "logs-archiver",
+    },
+}
+```
+
+
 # WebSocket
 
 Connect to any websocket connection with the following aspects considered:
 
 * You can specify `reconnect_every` to swap the connection every time this period passes.
 * If the server side closes the connection for any reason then a new connection is made, this tackles unexpected adhoc closure. If the new connection cannot be made, the process exits.
+
+### Consumer
 
 Example:
 
