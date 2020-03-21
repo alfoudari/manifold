@@ -26,9 +26,9 @@ type WebSocket struct {
 	URL    string // URL of websocket connection
 	Header http.Header
 	Args   map[string]string
-	conn   *websocket.Conn // holds connection instance
-	swap   chan bool       // conn swap signal
-	disc   chan bool       // disconnect signal
+	conn   *websocket.Conn      // holds connection instance
+	swap   chan bool            // conn swap signal
+	disc   map[string]chan bool // disconnect signal map (creates multiple  channels)
 	wg     sync.WaitGroup
 }
 
@@ -37,24 +37,16 @@ func (w *WebSocket) Info() {
 	log.Info("URL: ", w.URL)
 }
 
-// getConnection attempts to connect the URL in WebSocket
-// and return a connection.
-func getConnection(w *WebSocket) (conn *websocket.Conn) {
-	log.Info("Establishing websocket connection...")
-	conn, _, err := websocket.DefaultDialer.Dial(w.URL, w.Header)
-	if err != nil {
-		log.Fatal("getConnection; websocket.Dial: ", err)
-	}
-	log.Info("Websocket connection established.")
-	return
-}
-
 // Connect creates a new connection and launches a go
 // routine to reconnect periodically if `reconnect_every` is
 // in Args.
 func (w *WebSocket) Connect() (err error) {
-	w.conn = getConnection(w)
-	w.disc = make(chan bool)
+	err = w.newConnection()
+	w.swap = make(chan bool)
+	w.disc = map[string]chan bool{
+		"reconnect": make(chan bool),
+		"read":      make(chan bool),
+	}
 
 	if _, ok := w.Args["reconnect_every"]; ok {
 		log.Info("Got `reconnect_every` arg, launching `Reconnect` goroutine...")
@@ -69,20 +61,23 @@ func (w *WebSocket) Connect() (err error) {
 // and interested parties get a notification to clean up,
 // then it closes the web socket connection.
 func (w *WebSocket) Disconnect() (err error) {
-	log.Info("WebSocket: Disconnect()")
+	log.Info("WebSocket: Disconnect() started")
+
+	// close connection
+	if w.conn != nil {
+		err = closeWebSocket(w.conn)
+		w.conn = nil
+	}
 
 	// send a disconnect signal
 	if _, ok := w.Args["reconnect_every"]; ok {
-		log.Info("Sending disc signal")
-		w.disc <- true
+		log.Info("Sending disc signal to all channels.")
+		for name, c := range w.disc {
+			log.Infof("Sending to channel %s...", name)
+			c <- true
+			log.Infof("Sent disc signal to channel %s", name)
+		}
 	}
-
-	if w.conn == nil {
-		log.Warn("WebSocket.Disconnect(): conn is nil")
-		return
-	}
-
-	err = closeWebsocket(w.conn)
 
 	// wait for go routines to finish
 	log.Info("Waiting for goroutines to finish...")
@@ -114,26 +109,40 @@ func (w *WebSocket) Reconnect() (err error) {
 	for {
 		// check for a disconnect signal, quit if received
 		select {
-		case <-w.disc:
+		case <-w.disc["reconnect"]:
 			log.Warn("Reconnect(): Received disconnect signal")
 			w.wg.Done()
 			return
 		case <-time.After(reconnectEvery):
-			log.Warn("Swapping connections...")
+			log.Warn("WebSocket.Reconnect(): Swapping connections...")
+
+			// send a swapping started signal
+			w.swap <- true
 
 			// connect to a websocket connection
-			w.conn = getConnection(w)
-			log.Warn("Connection swapped successfully.")
+			err := w.newConnection()
+			if err != nil {
+				continue
+			}
+
+			log.Warn("WebSocket.Reconnect(): Connection swapped successfully.")
 			log.Trace("prevConn: ", prevConn.UnderlyingConn())
 			log.Trace("w.conn: ", w.conn.UnderlyingConn())
-			closeWebsocket(prevConn)
+			closeWebSocket(prevConn)
 			prevConn = w.conn
+
+			// send a swapping stopped signal
+			w.swap <- false
 		}
 	}
 }
 
 // Write writes `message` (transformed into bytes) to the websocket connection.
 func (w *WebSocket) Write(message string) (err error) {
+	if w.conn == nil {
+		return errors.New("w.conn is nil")
+	}
+
 	err = w.conn.WriteMessage(websocket.TextMessage, []byte(message))
 	if err != nil {
 		log.Error(err)
@@ -152,29 +161,69 @@ func (w *WebSocket) Write(message string) (err error) {
 // attempt fails, the process exits.
 func (w *WebSocket) Read() (channel chan string, err error) {
 	channel = make(chan string)
+	w.wg.Add(1)
 	go func() {
 		for {
-			log.Trace("Read() iteration, w.conn: ", w.conn.UnderlyingConn())
-
-			_, messageBytes, err := w.conn.ReadMessage()
-			log.Debug("ReadMessage() done")
-			if err != nil {
-				log.Warning("ReadMessage() error: ", err)
-				w.conn = getConnection(w)
-				log.Warning("Connection swapped successfully.")
+			select {
+			case <-w.disc["read"]:
+				log.Warn("Read(): Received disconnect signal")
+				w.wg.Done()
+				return
+			case swap := <-w.swap:
+				// swap signal received:
+				log.Tracef("swap signal received: %t", swap)
+				// if swap started (true), wait for a false signal
+				if swap {
+					_ = <-w.swap
+					// swap is done
+				}
+				// continue to next iteration
 				continue
-			}
+			default:
+				// no disc or swap signal received
+				if w.conn != nil {
+					log.Trace("Read() iteration, w.conn: ", w.conn.UnderlyingConn())
 
-			log.Debug("trying to push messageBytes into channel")
-			channel <- string(messageBytes)
-			log.Debug("channel <- messageBytes successful")
+					_, messageBytes, err := w.conn.ReadMessage()
+					log.Debug("ReadMessage() done")
+					if err != nil {
+						log.Warning("ReadMessage() error: ", err)
+
+						if w.conn != nil {
+							// ReadMessage() should not receive an error as Disconnect() nullifies w.conn
+							w.newConnection()
+						}
+
+						continue
+					}
+
+					log.Debug("trying to push messageBytes into channel")
+					channel <- string(messageBytes)
+					log.Debug("channel <- messageBytes successful")
+				}
+			}
 		}
 	}()
 	return
 }
 
-// closeMessage closes the websocet connection in `conn`.
-func closeWebsocket(conn *websocket.Conn) (err error) {
+// newConnection attempts to connect the URL in WebSocket
+// and return a connection.
+func (w *WebSocket) newConnection() (err error) {
+	log.Info("Establishing websocket connection...")
+	var conn *websocket.Conn
+	conn, _, err = websocket.DefaultDialer.Dial(w.URL, w.Header)
+	w.conn = conn
+	if err == nil {
+		log.Info("Websocket connection established.")
+	} else {
+		log.Error("WebSocket.newConnection: websocket.Dial: ", err)
+	}
+	return
+}
+
+// closeWebSocket closes the websocet connection in `conn`.
+func closeWebSocket(conn *websocket.Conn) (err error) {
 	if conn == nil {
 		err = errors.New("conn is nil")
 		return
