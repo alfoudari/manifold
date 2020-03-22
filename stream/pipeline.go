@@ -4,13 +4,17 @@ import (
 	"os"
 	"os/signal"
 	"reflect"
-	"time"
 
 	"github.com/abstractpaper/manifold/transform"
+	"github.com/abstractpaper/swissarmy"
 
 	log "github.com/sirupsen/logrus"
 )
 
+// Source is an interface that must be implemented to
+// flow data into the pipeline.
+//
+// Example sources: AWS Kinesis, RabbitMQ, WebSocket
 type Source interface {
 	Connect() error
 	Disconnect() error
@@ -18,6 +22,8 @@ type Source interface {
 	Read() (chan string, error)
 }
 
+// Destination is an interface that must be implemented to
+// flow data out of the pipeline.
 type Destination interface {
 	Connect() error
 	Disconnect() error
@@ -29,6 +35,18 @@ type stat struct {
 	count uint64
 }
 
+// Flow connects to source and destination and then launches a
+// goroutine to read from `src` and write to `dest`.
+//
+// A transformer is optional and can be used to to transform
+// data read from `src` before writing it to `dest`.
+//
+// Example:
+//  transform := transformer.JSON{
+//      Append: map[string]interface{}{
+//          "timestamp": func() interface{} { return time.Now() },
+//      },
+//  }
 func Flow(src Source, transformer transform.Transformer, dest Destination) {
 	// interrupt channel for OS signals
 	interrupt := make(chan os.Signal, 1)
@@ -36,8 +54,8 @@ func Flow(src Source, transformer transform.Transformer, dest Destination) {
 	signal.Notify(interrupt, os.Interrupt, os.Kill)
 
 	// Connect
-	retry(src.Connect, interrupt)
-	retry(dest.Connect, interrupt)
+	swissarmy.Retry(src.Connect, interrupt)
+	swissarmy.Retry(dest.Connect, interrupt)
 
 	log.Info("Source is: ", reflect.TypeOf(src))
 	src.Info()
@@ -82,38 +100,4 @@ func Flow(src Source, transformer transform.Transformer, dest Destination) {
 	// Disconnect
 	src.Disconnect()
 	dest.Disconnect()
-}
-
-func retry(f func() error, interrupt chan os.Signal) {
-	var sleep time.Duration = 2
-	var retryTimestamp time.Time = time.Now()
-	for {
-		select {
-		case <-interrupt:
-			log.Warn("Interrupt/kill signal received, quitting.")
-			os.Exit(1)
-		default:
-			// call f() if the current time passed retryTimestamp
-			if time.Now().After(retryTimestamp) {
-				err := f()
-				if err != nil {
-					log.Error(err)
-
-					// couldn't connect, retry.
-					log.Infof("Retrying in %d seconds", sleep)
-					retryTimestamp = time.Now().Add(sleep * time.Second)
-
-					// increase exponentially, hard cap at ~ 1 minute (64 seconds).
-					if sleep < 64 {
-						sleep = sleep * 2
-					}
-				} else {
-					return
-				}
-			}
-
-			// loop every second, check for signals and timeline in each iteration.
-			time.Sleep(1 * time.Second)
-		}
-	}
 }
