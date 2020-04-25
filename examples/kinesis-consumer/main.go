@@ -5,7 +5,7 @@ import (
 	"os/signal"
 
 	"github.com/abstractpaper/manifold/stream"
-	"github.com/abstractpaper/swissarmy"
+	swissOS "github.com/abstractpaper/swissarmy/os"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -20,9 +20,9 @@ func main() {
 	signal.Notify(interrupt, os.Interrupt, os.Kill)
 
 	// aws config
-	awsRegion := swissarmy.GetEnv("MANIFOLD_AWS_REGION", "us-east-1")
-	awsAccessKey := swissarmy.GetEnv("MANIFOLD_AWS_ACCESS_KEY", "")
-	awsSecretKey := swissarmy.GetEnv("MANIFOLD_AWS_SECRET_KEY", "")
+	awsRegion := swissOS.GetEnv("MANIFOLD_AWS_REGION", "us-east-1")
+	awsAccessKey := swissOS.GetEnv("MANIFOLD_AWS_ACCESS_KEY", "")
+	awsSecretKey := swissOS.GetEnv("MANIFOLD_AWS_SECRET_KEY", "")
 
 	// AWS setup
 	sess, err := session.NewSession(&aws.Config{
@@ -37,7 +37,7 @@ func main() {
 		ConsumerName: "test-consumer",
 		StreamARN:    "arn:aws:kinesis:us-east-1:999999999999:stream/test",
 		AWSSess:      sess,
-		Args:		  map[string]string{
+		Args: map[string]string{
 			"shardId":       "shardId-000000000000",
 			"shardIterator": "LATEST",
 		},

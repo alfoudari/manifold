@@ -5,7 +5,7 @@ import (
 	"os/signal"
 
 	"github.com/abstractpaper/manifold/stream"
-	"github.com/abstractpaper/swissarmy"
+	swissOS "github.com/abstractpaper/swissarmy/os"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -18,11 +18,11 @@ func main() {
 	interrupt := make(chan os.Signal, 1)
 	// register interrupt channel to receive SIGINT and SIGKILL
 	signal.Notify(interrupt, os.Interrupt, os.Kill)
-	
+
 	// aws config
-	awsRegion := swissarmy.GetEnv("MANIFOLD_AWS_REGION", "us-east-1")
-	awsAccessKey := swissarmy.GetEnv("MANIFOLD_AWS_ACCESS_KEY", "")
-	awsSecretKey := swissarmy.GetEnv("MANIFOLD_AWS_SECRET_KEY", "")
+	awsRegion := swissOS.GetEnv("MANIFOLD_AWS_REGION", "us-east-1")
+	awsAccessKey := swissOS.GetEnv("MANIFOLD_AWS_ACCESS_KEY", "")
+	awsSecretKey := swissOS.GetEnv("MANIFOLD_AWS_SECRET_KEY", "")
 
 	// AWS setup
 	sess, err := session.NewSession(&aws.Config{
@@ -36,10 +36,10 @@ func main() {
 	src := stream.Stdio{}
 
 	dest := stream.Kinesis{
-		AWSSess:    sess,
-		Args:		map[string]string{
-			"partitionKey": 	"partition1",
-			"streamName":		"test",
+		AWSSess: sess,
+		Args: map[string]string{
+			"partitionKey": "partition1",
+			"streamName":   "test",
 		},
 	}
 
