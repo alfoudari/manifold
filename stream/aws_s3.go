@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
+	swissIO "github.com/abstractpaper/swissarmy/io"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
-	"github.com/abstractpaper/swissarmy"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -97,7 +97,7 @@ func (s *S3) collector() {
 			}
 
 			// append (or create) to buffer
-			err = swissarmy.AppendFile(bufferPath, msg+"\n")
+			err = swissIO.AppendFile(bufferPath, msg+"\n")
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -109,7 +109,7 @@ func (s *S3) collector() {
 		timeCommitted := time.Now()
 		for {
 			// check if file 'buffer' exists
-			exists, err := swissarmy.FileExists(bufferPath)
+			exists, err := swissIO.FileExists(bufferPath)
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -155,7 +155,7 @@ func (s *S3) uploader() {
 	uploader := s3manager.NewUploader(s.Sess)
 	for {
 		// check if folder exists
-		exists, err := swissarmy.DirExists(s.buffer.path)
+		exists, err := swissIO.DirExists(s.buffer.path)
 		if err != nil {
 			log.Fatal(err)
 		}

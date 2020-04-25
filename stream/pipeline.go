@@ -6,7 +6,7 @@ import (
 	"reflect"
 
 	"github.com/abstractpaper/manifold/transform"
-	"github.com/abstractpaper/swissarmy"
+	swissFunc "github.com/abstractpaper/swissarmy/function"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -54,8 +54,8 @@ func Flow(src Source, transformer transform.Transformer, dest Destination) {
 	signal.Notify(interrupt, os.Interrupt, os.Kill)
 
 	// Connect
-	swissarmy.Retry(src.Connect, interrupt)
-	swissarmy.Retry(dest.Connect, interrupt)
+	swissFunc.Retry(src.Connect, interrupt)
+	swissFunc.Retry(dest.Connect, interrupt)
 
 	log.Info("Source is: ", reflect.TypeOf(src))
 	src.Info()
